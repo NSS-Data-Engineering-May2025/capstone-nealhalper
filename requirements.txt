@@ -1,4 +1,6 @@
 requests
 python-dotenv
 minio
+dbt-core
 dbt-duckdb
+duckdb

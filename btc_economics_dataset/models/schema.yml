@@ -1,0 +1,59 @@
+version: 2
+
+models:
+  - name: stg_coingecko_raw
+    description: "Raw CoinGecko data from MinIO"
+    columns:
+      - name: record_date
+        description: "Date of the Bitcoin price record"
+        tests:
+          - not_null
+      - name: coin_id
+        description: "Cryptocurrency identifier"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['bitcoin']
+      - name: price_usd
+        description: "Bitcoin price in USD"
+        tests:
+          - not_null
+
+  - name: stg_fred_raw
+    description: "Raw FRED economic data from MinIO"
+    columns:
+      - name: observation_date
+        description: "Date of the economic observation"
+        tests:
+          - not_null
+      - name: series_id
+        description: "FRED series identifier"
+        tests:
+          - not_null
+
+  - name: int_bitcoin_daily
+    description: "Cleaned Bitcoin daily data"
+    columns:
+      - name: date
+        description: "Date of Bitcoin price"
+        tests:
+          - not_null
+          - unique
+      - name: price_usd
+        description: "Bitcoin price in USD"
+        tests:
+          - not_null
+
+  - name: fact_bitcoin_prices
+    description: "Daily Bitcoin prices with economic context"
+    columns:
+      - name: date
+        description: "Date"
+        tests:
+          - not_null
+          - unique
+      - name: price_usd
+        description: "Bitcoin price in USD"
+        tests:
+          - not_null
