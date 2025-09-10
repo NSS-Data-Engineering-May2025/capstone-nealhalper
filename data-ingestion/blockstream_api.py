@@ -74,7 +74,7 @@ def save_to_minio(data, object_name, minio_client=None):
         minio_client.put_object(
             MINIO_BUCKET,
             object_name,
-            data=io.BytesIO(json_bytes),  # Convert bytes to file-like object
+            data=io.BytesIO(json_bytes), 
             length=len(json_bytes),
             content_type='application/json'
         )
