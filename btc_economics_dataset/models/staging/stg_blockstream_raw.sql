@@ -21,7 +21,6 @@ parsed_data AS (
         bitcoin_data,
         CURRENT_TIMESTAMP AS dbt_created_at,
         
-        -- Classify data types for routing
         CASE 
             WHEN {{ safe_json_extract_string('batch_info', '$.data_type') }} LIKE '%block%' THEN 'block_data'
             WHEN {{ safe_json_extract_string('batch_info', '$.data_type') }} LIKE '%mempool%' THEN 'mempool_data'

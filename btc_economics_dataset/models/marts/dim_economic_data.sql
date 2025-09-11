@@ -109,59 +109,54 @@ economic_data_with_stats AS (
         
     FROM economic_indicators ei
     JOIN indicator_metadata im ON ei.series_id = im.series_id
-),
-
-final_dimension AS (
-    SELECT 
-        date,
-        series_id,
-        series_name,
-        indicator_name,
-        indicator_category,
-        data_category,
-        observation_value,
-        value_30d_avg,
-        value_30d_stddev,
-        daily_change,
-        weekly_change,
-        monthly_change,
-        value_percentile_rank,
-        indicator_description,
-        unit_of_measure,
-        frequency,
-        category_sort_order,
-        is_outlier,
-        
-        CASE 
-            WHEN daily_change > 0 THEN 'Up'
-            WHEN daily_change < 0 THEN 'Down'
-            ELSE 'Flat'
-        END AS daily_trend,
-        
-        CASE 
-            WHEN weekly_change > 0 THEN 'Up'
-            WHEN weekly_change < 0 THEN 'Down'
-            ELSE 'Flat'
-        END AS weekly_trend,
-        
-        CASE 
-            WHEN monthly_change > 0 THEN 'Up'
-            WHEN monthly_change < 0 THEN 'Down'
-            ELSE 'Flat'
-        END AS monthly_trend,
-        
-        CASE 
-            WHEN observation_value IS NULL THEN 'Missing'
-            WHEN is_outlier THEN 'Outlier'
-            ELSE 'Valid'
-        END AS data_quality_flag,
-        
-        batch_collection_timestamp,
-        dbt_created_at
-        
-    FROM economic_data_with_stats
 )
 
-SELECT *
-FROM final_dimension
+SELECT 
+    date,
+    series_id,
+    series_name,
+    indicator_name,
+    indicator_category,
+    data_category,
+    observation_value,
+    value_30d_avg,
+    value_30d_stddev,
+    daily_change,
+    weekly_change,
+    monthly_change,
+    value_percentile_rank,
+    indicator_description,
+    unit_of_measure,
+    frequency,
+    category_sort_order,
+    is_outlier,
+    
+    CASE 
+        WHEN daily_change > 0 THEN 'Up'
+        WHEN daily_change < 0 THEN 'Down'
+        ELSE 'Flat'
+    END AS daily_trend,
+    
+    CASE 
+        WHEN weekly_change > 0 THEN 'Up'
+        WHEN weekly_change < 0 THEN 'Down'
+        ELSE 'Flat'
+    END AS weekly_trend,
+    
+    CASE 
+        WHEN monthly_change > 0 THEN 'Up'
+        WHEN monthly_change < 0 THEN 'Down'
+        ELSE 'Flat'
+    END AS monthly_trend,
+    
+    CASE 
+        WHEN observation_value IS NULL THEN 'Missing'
+        WHEN is_outlier THEN 'Outlier'
+        ELSE 'Valid'
+    END AS data_quality_flag,
+    
+    batch_collection_timestamp,
+    dbt_created_at
+    
+FROM economic_data_with_stats
 ORDER BY date, category_sort_order, series_name

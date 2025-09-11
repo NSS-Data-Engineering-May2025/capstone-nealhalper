@@ -61,12 +61,12 @@ processed_blocks AS (
         CASE 
             WHEN block_size > 0 THEN ROUND(transaction_count::FLOAT / block_size * 1000000, 2)
             ELSE NULL
-        END AS tx_density_per_mb,
+        END AS transaction_density_per_mb,
         
         CASE 
             WHEN transaction_count > 0 THEN ROUND(total_fees::FLOAT / transaction_count, 0)
             ELSE NULL
-        END AS avg_fee_per_tx,
+        END AS avg_fee_per_transaction,
         
         CASE 
             WHEN block_weight > 0 THEN ROUND(block_weight::FLOAT / 4000000 * 100, 2)

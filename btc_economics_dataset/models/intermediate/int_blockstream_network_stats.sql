@@ -22,7 +22,6 @@ processed_fees AS (
         {{ safe_json_extract_number('bitcoin_data', '$.standard_fee') }} AS standard_fee_rate,
         {{ safe_json_extract_number('bitcoin_data', '$.safe_fee') }} AS safe_fee_rate,
         
-        'fee_rates' AS data_type,
         api_source,
         dbt_created_at
         
@@ -43,88 +42,121 @@ processed_difficulty AS (
         {{ safe_json_extract_number('bitcoin_data', '$.hashrate_7d') }} AS hashrate_7d_avg,
         {{ safe_json_extract_number('bitcoin_data', '$.hashrate_30d') }} AS hashrate_30d_avg,
         
-        'difficulty_stats' AS data_type,
         api_source,
         dbt_created_at
         
     FROM difficulty_data
 ),
 
-combined_network_stats AS (
-    SELECT
-        observation_date,
-        observation_timestamp,
-        fast_fee_rate,
-        standard_fee_rate,
-        safe_fee_rate,
-        NULL AS current_difficulty,
-        NULL AS difficulty_adjustment_pct,
-        NULL AS estimated_next_difficulty,
-        NULL AS blocks_until_adjustment,
-        NULL AS time_until_adjustment_hours,
-        NULL AS hashrate_7d_avg,
-        NULL AS hashrate_30d_avg,
-        data_type,
-        api_source,
-        dbt_created_at
-    FROM processed_fees
-    
-    UNION ALL
-    
-    SELECT
-        observation_date,
-        observation_timestamp,
-        NULL AS fast_fee_rate,
-        NULL AS standard_fee_rate,
-        NULL AS safe_fee_rate,
-        current_difficulty,
-        difficulty_adjustment_pct,
-        estimated_next_difficulty,
-        blocks_until_adjustment,
-        time_until_adjustment_hours,
-        hashrate_7d_avg,
-        hashrate_30d_avg,
-        data_type,
-        api_source,
-        dbt_created_at
-    FROM processed_difficulty
-),
-
 daily_aggregated AS (
     SELECT
-        observation_date,
+        COALESCE(pf.observation_date, pd.observation_date) AS observation_date,
         
-        MAX(CASE WHEN data_type = 'fee_rates' THEN fast_fee_rate END) AS daily_fast_fee_rate,
-        MAX(CASE WHEN data_type = 'fee_rates' THEN standard_fee_rate END) AS daily_standard_fee_rate,
-        MAX(CASE WHEN data_type = 'fee_rates' THEN safe_fee_rate END) AS daily_safe_fee_rate,
+        AVG(pf.fast_fee_rate) AS daily_avg_fast_fee_rate,
+        MAX(pf.fast_fee_rate) AS daily_max_fast_fee_rate,
+        MIN(pf.fast_fee_rate) AS daily_min_fast_fee_rate,
         
-        MAX(CASE WHEN data_type = 'difficulty_stats' THEN current_difficulty END) AS daily_difficulty,
-        MAX(CASE WHEN data_type = 'difficulty_stats' THEN difficulty_adjustment_pct END) AS daily_difficulty_adjustment_pct,
-        MAX(CASE WHEN data_type = 'difficulty_stats' THEN hashrate_7d_avg END) AS daily_hashrate_7d_avg,
-        MAX(CASE WHEN data_type = 'difficulty_stats' THEN hashrate_30d_avg END) AS daily_hashrate_30d_avg,
+        AVG(pf.standard_fee_rate) AS daily_avg_standard_fee_rate,
+        MAX(pf.standard_fee_rate) AS daily_max_standard_fee_rate,
+        MIN(pf.standard_fee_rate) AS daily_min_standard_fee_rate,
         
-        MAX(observation_timestamp) AS latest_observation_timestamp,
-        MAX(dbt_created_at) AS dbt_created_at
+        AVG(pf.safe_fee_rate) AS daily_avg_safe_fee_rate,
+        MAX(pf.safe_fee_rate) AS daily_max_safe_fee_rate,
+        MIN(pf.safe_fee_rate) AS daily_min_safe_fee_rate,
         
-    FROM combined_network_stats
-    GROUP BY observation_date
+        AVG(pd.current_difficulty) AS daily_avg_difficulty,
+        MAX(pd.current_difficulty) AS daily_max_difficulty,
+        MIN(pd.current_difficulty) AS daily_min_difficulty,
+        
+        AVG(pd.difficulty_adjustment_pct) AS daily_avg_difficulty_adjustment_pct,
+        MAX(pd.difficulty_adjustment_pct) AS daily_max_difficulty_adjustment_pct,
+        MIN(pd.difficulty_adjustment_pct) AS daily_min_difficulty_adjustment_pct,
+        
+        AVG(pd.estimated_next_difficulty) AS daily_avg_estimated_next_difficulty,
+        MAX(pd.estimated_next_difficulty) AS daily_max_estimated_next_difficulty,
+        MIN(pd.estimated_next_difficulty) AS daily_min_estimated_next_difficulty,
+    
+        MAX(pd.blocks_until_adjustment) AS daily_blocks_until_adjustment,
+        MAX(pd.time_until_adjustment_hours) AS daily_time_until_adjustment_hours,
+
+        AVG(pd.hashrate_7d_avg) AS daily_avg_hashrate_7d,
+        MAX(pd.hashrate_7d_avg) AS daily_max_hashrate_7d,
+        MIN(pd.hashrate_7d_avg) AS daily_min_hashrate_7d,
+        
+        AVG(pd.hashrate_30d_avg) AS daily_avg_hashrate_30d,
+        MAX(pd.hashrate_30d_avg) AS daily_max_hashrate_30d,
+        MIN(pd.hashrate_30d_avg) AS daily_min_hashrate_30d,
+        
+        COUNT(pf.fast_fee_rate) AS daily_fee_reading_count,
+        COUNT(pd.current_difficulty) AS daily_difficulty_reading_count,
+        
+        GREATEST(
+            COALESCE(MAX(pf.observation_timestamp), '1900-01-01'::timestamp),
+            COALESCE(MAX(pd.observation_timestamp), '1900-01-01'::timestamp)
+        ) AS latest_observation_timestamp,
+        
+        GREATEST(
+            COALESCE(MAX(pf.dbt_created_at), '1900-01-01'::timestamp),
+            COALESCE(MAX(pd.dbt_created_at), '1900-01-01'::timestamp)
+        ) AS dbt_created_at
+        
+    FROM processed_fees pf
+    FULL OUTER JOIN processed_difficulty pd 
+        ON pf.observation_date = pd.observation_date
+    GROUP BY COALESCE(pf.observation_date, pd.observation_date)
 )
 
 SELECT 
     observation_date,
-    daily_fast_fee_rate,
-    daily_standard_fee_rate,
-    daily_safe_fee_rate,
-    daily_difficulty,
-    daily_difficulty_adjustment_pct,
-    daily_hashrate_7d_avg,
-    daily_hashrate_30d_avg,
+    
+    daily_avg_fast_fee_rate,
+    daily_max_fast_fee_rate,
+    daily_min_fast_fee_rate,
+    daily_avg_standard_fee_rate,
+    daily_max_standard_fee_rate,
+    daily_min_standard_fee_rate,
+    daily_avg_safe_fee_rate,
+    daily_max_safe_fee_rate,
+    daily_min_safe_fee_rate,
+    
+    daily_avg_difficulty,
+    daily_max_difficulty,
+    daily_min_difficulty,
+    daily_avg_difficulty_adjustment_pct,
+    daily_max_difficulty_adjustment_pct,
+    daily_min_difficulty_adjustment_pct,
+
+    daily_avg_hashrate_7d,
+    daily_max_hashrate_7d,
+    daily_min_hashrate_7d,
+    daily_avg_hashrate_30d,
+    daily_max_hashrate_30d,
+    daily_min_hashrate_30d,
+    
+    daily_blocks_until_adjustment,
+    daily_time_until_adjustment_hours,
+    daily_avg_estimated_next_difficulty,
+    
+    daily_fee_reading_count,
+    daily_difficulty_reading_count,
     
     CASE 
-        WHEN daily_fast_fee_rate > 0 AND daily_safe_fee_rate > 0 
-        THEN ROUND(daily_fast_fee_rate::FLOAT / daily_safe_fee_rate, 2)
+        WHEN daily_avg_fast_fee_rate > 0 AND daily_avg_safe_fee_rate > 0 
+        THEN ROUND(daily_avg_fast_fee_rate::FLOAT / daily_avg_safe_fee_rate, 2)
         ELSE NULL
-    END AS fee_urgency_multiplier,
+    END AS avg_fee_urgency_multiplier,
+    
+    CASE 
+        WHEN daily_max_fast_fee_rate > 0 AND daily_min_safe_fee_rate > 0 
+        THEN ROUND(daily_max_fast_fee_rate::FLOAT / daily_min_safe_fee_rate, 2)
+        ELSE NULL
+    END AS peak_fee_urgency_multiplier,
+    
+    CASE 
+        WHEN daily_avg_fast_fee_rate > 0 AND daily_max_fast_fee_rate > daily_min_fast_fee_rate
+        THEN ROUND((daily_max_fast_fee_rate - daily_min_fast_fee_rate)::FLOAT / daily_avg_fast_fee_rate * 100, 2)
+        ELSE NULL
+    END AS daily_fee_volatility_pct,
     
     latest_observation_timestamp,
     dbt_created_at

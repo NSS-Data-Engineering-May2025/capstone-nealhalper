@@ -32,7 +32,7 @@ validated_bitcoin AS (
     SELECT *,
         CASE 
             WHEN price_usd <= 0 THEN FALSE
-            WHEN price_usd > 1000000 THEN FALSE 
+            WHEN price_usd IS NULL THEN FALSE 
             ELSE TRUE
         END AS is_valid_price,
 

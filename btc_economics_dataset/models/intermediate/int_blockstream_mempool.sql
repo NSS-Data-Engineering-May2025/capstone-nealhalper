@@ -14,7 +14,7 @@ mempool_data AS (
         collection_timestamp,
         api_source,
         
-        {{ safe_json_extract_number('bitcoin_data', '$.count') }} AS unconfirmed_tx_count,
+        {{ safe_json_extract_number('bitcoin_data', '$.count') }} AS unconfirmed_transaction_count,
         {{ safe_json_extract_number('bitcoin_data', '$.vsize') }} AS total_vsize,
         {{ safe_json_extract_number('bitcoin_data', '$.total_fee') }} AS total_fees_pending,
         {{ safe_json_extract_number('bitcoin_data', '$.fee_histogram') }} AS fee_histogram,
@@ -34,7 +34,7 @@ processed_mempool AS (
         DATE(TRY_CAST(collection_timestamp AS TIMESTAMP)) AS observation_date,
         TRY_CAST(collection_timestamp AS TIMESTAMP) AS observation_timestamp,
         
-        unconfirmed_tx_count,
+        unconfirmed_transaction_count,
         total_vsize,
         total_fees_pending,
 
@@ -45,10 +45,10 @@ processed_mempool AS (
         minimum_fee_rate,
         
         CASE 
-            WHEN unconfirmed_tx_count > 0 AND total_fees_pending > 0 
-            THEN ROUND(total_fees_pending::FLOAT / unconfirmed_tx_count, 0)
+            WHEN unconfirmed_transaction_count > 0 AND total_fees_pending > 0 
+            THEN ROUND(total_fees_pending::FLOAT / unconfirmed_transaction_count, 0)
             ELSE NULL
-        END AS avg_fee_per_unconfirmed_tx,
+        END AS avg_fee_per_unconfirmed_transaction,
         
         CASE 
             WHEN total_vsize > 0 AND total_fees_pending > 0 
@@ -63,9 +63,9 @@ processed_mempool AS (
         END AS fee_urgency_ratio,
         
         CASE 
-            WHEN unconfirmed_tx_count > 50000 THEN 'High Congestion'
-            WHEN unconfirmed_tx_count > 20000 THEN 'Moderate Congestion'
-            WHEN unconfirmed_tx_count > 5000 THEN 'Low Congestion'
+            WHEN unconfirmed_transaction_count > 50000 THEN 'High Congestion'
+            WHEN unconfirmed_transaction_count > 20000 THEN 'Moderate Congestion'
+            WHEN unconfirmed_transaction_count > 5000 THEN 'Low Congestion'
             ELSE 'Clear'
         END AS congestion_level,
         
