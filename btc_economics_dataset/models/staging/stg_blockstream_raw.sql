@@ -3,35 +3,68 @@
     description='Raw Blockstream API data from MinIO bronze bucket with expanded data types'
 ) }}
 
-WITH raw_blockstream_data AS (
+WITH blocks_data AS (
     SELECT
         filename,
-        batch_info,
-        bitcoin_data
-    FROM read_json_auto('s3://blockstream-data/**/*.json')
+        'block_data' AS blockstream_category,
+        header,
+        block_id,
+        in_best_chain,
+        height,
+        next_best,
+        NULL AS mempool_size,
+        NULL AS fee_rate,
+        'Blockstream API' AS api_source,
+        CURRENT_TIMESTAMP AS collection_timestamp,
+        CURRENT_TIMESTAMP AS dbt_created_at
+    FROM read_json_auto('s3://bronze/blocks/*.json')
 ),
 
-parsed_data AS (
+fees_data AS (
     SELECT
         filename,
-        {{ safe_json_extract_string('batch_info', '$.collection_timestamp') }} AS collection_timestamp,
-        {{ safe_json_extract_string('batch_info', '$.api_source') }} AS api_source,
-        {{ safe_json_extract_string('batch_info', '$.data_type') }} AS data_type,
-        {{ safe_json_extract_number('batch_info', '$.record_count') }} AS record_count,
-        bitcoin_data,
-        CURRENT_TIMESTAMP AS dbt_created_at,
-        
-        CASE 
-            WHEN {{ safe_json_extract_string('batch_info', '$.data_type') }} LIKE '%block%' THEN 'block_data'
-            WHEN {{ safe_json_extract_string('batch_info', '$.data_type') }} LIKE '%mempool%' THEN 'mempool_data'
-            WHEN {{ safe_json_extract_string('batch_info', '$.data_type') }} LIKE '%fee%' THEN 'fee_data'
-            WHEN {{ safe_json_extract_string('batch_info', '$.data_type') }} LIKE '%difficulty%' THEN 'difficulty_data'
-            ELSE 'other_data'
-        END AS blockstream_category
-        
-    FROM raw_blockstream_data
-    WHERE bitcoin_data IS NOT NULL
+        'fee_data' AS blockstream_category,
+        NULL AS header,
+        NULL AS block_id,
+        NULL AS in_best_chain,
+        NULL AS height,
+        NULL AS next_best,
+        NULL AS mempool_size,
+        -- We'll need to see the actual fee structure, but placeholder for now
+        * EXCLUDE (filename),
+        'Blockstream API' AS api_source,
+        CURRENT_TIMESTAMP AS collection_timestamp,
+        CURRENT_TIMESTAMP AS dbt_created_at
+    FROM read_json_auto('s3://bronze/fees/*.json')
+),
+
+mempool_data AS (
+    SELECT
+        filename,
+        'mempool_data' AS blockstream_category,
+        NULL AS header,
+        NULL AS block_id,
+        NULL AS in_best_chain,
+        NULL AS height,
+        NULL AS next_best,
+        -- We'll need to see the actual mempool structure, but placeholder for now
+        * EXCLUDE (filename),
+        'Blockstream API' AS api_source,
+        CURRENT_TIMESTAMP AS collection_timestamp,
+        CURRENT_TIMESTAMP AS dbt_created_at
+    FROM read_json_auto('s3://bronze/mempool/*.json')
 )
 
-SELECT *
-FROM parsed_data
+-- For now, let's just work with blocks data since we know the structure
+SELECT 
+    filename,
+    blockstream_category,
+    header,
+    block_id,
+    in_best_chain,
+    height,
+    next_best,
+    api_source,
+    collection_timestamp,
+    dbt_created_at
+FROM blocks_data

@@ -14,7 +14,7 @@
     )
 {% endmacro %}
 
-{% macro convert_fred_observation_value(value_column) %}
+{% macro convert_fred_value(value_column) %}
     {# Convert FRED API observation values, handling missing data markers #}
     CASE 
         WHEN {{ value_column }} = '.' THEN NULL    
