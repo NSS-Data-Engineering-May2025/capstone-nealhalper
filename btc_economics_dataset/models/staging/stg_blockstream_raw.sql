@@ -1,70 +1,33 @@
 {{ config(
     materialized='view',
-    description='Raw Blockstream API data from MinIO bronze bucket with expanded data types'
+    description='Raw Bitcoin block data from Blockstream API'
 ) }}
 
-WITH blocks_data AS (
-    SELECT
-        filename,
-        'block_data' AS blockstream_category,
-        header,
-        block_id,
-        in_best_chain,
-        height,
-        next_best,
-        NULL AS mempool_size,
-        NULL AS fee_rate,
-        'Blockstream API' AS api_source,
-        CURRENT_TIMESTAMP AS collection_timestamp,
-        CURRENT_TIMESTAMP AS dbt_created_at
-    FROM read_json_auto('s3://bronze/blocks/*.json')
-),
-
-fees_data AS (
-    SELECT
-        filename,
-        'fee_data' AS blockstream_category,
-        NULL AS header,
-        NULL AS block_id,
-        NULL AS in_best_chain,
-        NULL AS height,
-        NULL AS next_best,
-        NULL AS mempool_size,
-        -- We'll need to see the actual fee structure, but placeholder for now
-        * EXCLUDE (filename),
-        'Blockstream API' AS api_source,
-        CURRENT_TIMESTAMP AS collection_timestamp,
-        CURRENT_TIMESTAMP AS dbt_created_at
-    FROM read_json_auto('s3://bronze/fees/*.json')
-),
-
-mempool_data AS (
-    SELECT
-        filename,
-        'mempool_data' AS blockstream_category,
-        NULL AS header,
-        NULL AS block_id,
-        NULL AS in_best_chain,
-        NULL AS height,
-        NULL AS next_best,
-        -- We'll need to see the actual mempool structure, but placeholder for now
-        * EXCLUDE (filename),
-        'Blockstream API' AS api_source,
-        CURRENT_TIMESTAMP AS collection_timestamp,
-        CURRENT_TIMESTAMP AS dbt_created_at
-    FROM read_json_auto('s3://bronze/mempool/*.json')
-)
-
--- For now, let's just work with blocks data since we know the structure
-SELECT 
+SELECT
     filename,
-    blockstream_category,
-    header,
-    block_id,
-    in_best_chain,
     height,
-    next_best,
-    api_source,
+    block_hash,
     collection_timestamp,
-    dbt_created_at
-FROM blocks_data
+    
+    -- All raw_block_data fields
+    raw_block_data.id as raw_block_id,
+    raw_block_data.height as raw_height,
+    raw_block_data.version as raw_version,
+    raw_block_data.timestamp as raw_timestamp,
+    raw_block_data.tx_count as raw_tx_count,
+    raw_block_data.size as raw_size,
+    raw_block_data.weight as raw_weight,
+    raw_block_data.merkle_root as raw_merkle_root,
+    raw_block_data.previousblockhash as raw_previousblockhash,
+    raw_block_data.mediantime as raw_mediantime,
+    raw_block_data.nonce as raw_nonce,
+    raw_block_data.bits as raw_bits,
+    raw_block_data.difficulty as raw_difficulty,
+    
+    -- Keep entire raw JSON object
+    raw_block_data as full_raw_block_data,
+    
+    'Blockstream API' AS api_source,
+    CURRENT_TIMESTAMP AS dbt_created_at
+
+FROM read_json_auto('s3://bronze/blocks/*.json')

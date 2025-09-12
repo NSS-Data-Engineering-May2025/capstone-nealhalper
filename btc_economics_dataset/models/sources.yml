@@ -1,0 +1,37 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Raw Bitcoin data from MinIO via DuckDB S3 integration
+    meta:
+      external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/"
+    
+    tables:
+      - name: blocks
+        description: Raw Bitcoin block data
+        meta:
+          external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/blocks/*.json"
+        columns:
+          - name: height
+            description: Block height (integer)
+          - name: block_hash
+            description: Block hash (string)
+          - name: collection_timestamp
+            description: When data was collected (timestamp)
+          - name: raw_block_data
+            description: Raw block data from Blockstream API (JSON object)
+
+      - name: mempool_snapshots
+        description: Real-time mempool snapshots
+        meta:
+          external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/mempool/*/*.json"
+
+      - name: current_fee_estimates
+        description: Current fee estimate snapshots
+        meta:
+          external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/fees/current/*/*.json"
+
+      - name: historical_fee_data
+        description: Historical fee data points
+        meta:
+          external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/fees/historical/*.json"
