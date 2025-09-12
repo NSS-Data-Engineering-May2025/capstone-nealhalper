@@ -11,15 +11,6 @@ sources:
         description: Raw Bitcoin block data
         meta:
           external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/blocks/*.json"
-        columns:
-          - name: height
-            description: Block height (integer)
-          - name: block_hash
-            description: Block hash (string)
-          - name: collection_timestamp
-            description: When data was collected (timestamp)
-          - name: raw_block_data
-            description: Raw block data from Blockstream API (JSON object)
 
       - name: mempool_snapshots
         description: Real-time mempool snapshots
@@ -35,3 +26,21 @@ sources:
         description: Historical fee data points
         meta:
           external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/fees/historical/*.json"
+
+  - name: coingecko
+    description: CoinGecko price and market data from separate bucket
+    meta:
+      external_location: "s3://coingecko-data/"
+    
+    tables:
+      - name: coingecko_raw
+        description: Raw CoinGecko price and market data
+        meta:
+          external_location: "s3://coingecko-data/*.json"
+        columns:
+          - name: batch_info  # Changed from file_name to batch_info
+            description: Batch information with timestamp
+          - name: records
+            description: Raw JSON response from CoinGecko API with nested market_data structure
+          - name: file_collection_timestamp
+            description: When the data file was collected
