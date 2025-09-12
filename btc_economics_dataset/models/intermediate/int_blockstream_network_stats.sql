@@ -47,9 +47,18 @@ daily_mempool AS (
     GROUP BY observation_date
 ),
 
+-- Separate current and historical fees into individual CTEs
+current_fees AS (
+    SELECT * FROM daily_fees WHERE fee_data_type = 'current'
+),
+
+historical_fees AS (
+    SELECT * FROM daily_fees WHERE fee_data_type = 'historical'
+),
+
 combined_daily_stats AS (
     SELECT 
-        COALESCE(db.block_date, df.observation_date, dm.observation_date) as observation_date,
+        COALESCE(db.block_date, cf.observation_date, hf.observation_date, dm.observation_date) as observation_date,
         
         -- Block metrics
         db.blocks_mined,
@@ -90,12 +99,10 @@ combined_daily_stats AS (
         CURRENT_TIMESTAMP as dbt_created_at
         
     FROM daily_blocks db
-    FULL OUTER JOIN daily_fees cf 
+    FULL OUTER JOIN current_fees cf 
         ON db.block_date = cf.observation_date 
-        AND cf.fee_data_type = 'current'
-    FULL OUTER JOIN daily_fees hf 
+    FULL OUTER JOIN historical_fees hf 
         ON db.block_date = hf.observation_date 
-        AND hf.fee_data_type = 'historical'
     FULL OUTER JOIN daily_mempool dm 
         ON db.block_date = dm.observation_date
 )

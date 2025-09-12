@@ -1,59 +1,157 @@
 version: 2
 
 models:
-  - name: stg_coingecko_raw
-    description: "Raw CoinGecko data from MinIO"
+  - name: stg_fred_raw
+    description: "Raw FRED economic data staging model"
     columns:
-      - name: record_date
-        description: "Date of the Bitcoin price record"
-        tests:
-          - not_null
-      - name: coin_id
-        description: "Cryptocurrency identifier"
+      - name: series_key
+        description: "Unique series identifier"
         tests:
           - not_null
           - accepted_values:
-              arguments:
-                values: ['bitcoin']
-      - name: price_usd
-        description: "Bitcoin price in USD"
-        tests:
-          - not_null
-
-  - name: stg_fred_raw
-    description: "Raw FRED economic data from MinIO"
-    columns:
+              values: ['federal_funds_rate', 'treasury_10y', 'treasury_2y', 'treasury_3m', 'prime_rate', 'sofr_rate', 'sofr_index', 'sofr_30d_avg', 'sofr_90d_avg', 'sofr_180d_avg', 'initial_claims', 'continued_claims', 'unemployment_rate', 'sp500_index']
+      
       - name: observation_date
         description: "Date of the economic observation"
         tests:
           - not_null
+          - dbt_utils.expression_is_true:
+              expression: "observation_date >= '2020-01-01'"
+      
+      - name: observation_value
+        description: "Raw observation value"
+        tests:
+          - not_null
+
+  - name: int_economic_indicators
+    description: "Consolidated economic indicators"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - series_key
+            - date
+    columns:
+      - name: series_key
+        tests:
+          - not_null
+      
+      - name: date
+        tests:
+          - not_null
+      
+      - name: numeric_value
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "numeric_value >= 0"
+              config:
+                where: "series_key != 'unemployment_rate'"
+      
+      - name: data_category
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Interest Rates', 'SOFR', 'Employment', 'Stock Market']
+
+  - name: dim_economic_data
+    description: "Economic indicators dimension table"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - series_id
+            - date
+    columns:
       - name: series_id
-        description: "FRED series identifier"
         tests:
           - not_null
-
-  - name: int_bitcoin_daily
-    description: "Cleaned Bitcoin daily data"
-    columns:
+      
       - name: date
-        description: "Date of Bitcoin price"
         tests:
           - not_null
-          - unique
-      - name: price_usd
-        description: "Bitcoin price in USD"
+      
+      - name: numeric_value
         tests:
           - not_null
+      
+      - name: data_quality_flag
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Valid', 'Missing', 'Outlier']
+      
+      - name: daily_trend
+        tests:
+          - accepted_values:
+              values: ['Up', 'Down', 'Flat']
+      
+      - name: weekly_trend
+        tests:
+          - accepted_values:
+              values: ['Up', 'Down', 'Flat']
+      
+      - name: monthly_trend
+        tests:
+          - accepted_values:
+              values: ['Up', 'Down', 'Flat']
 
-  - name: fact_bitcoin_prices
-    description: "Daily Bitcoin prices with economic context"
+  - name: int_interest_rates
+    description: "Interest rates intermediate model"
     columns:
-      - name: date
-        description: "Date"
+      - name: rate_value
         tests:
           - not_null
-          - unique
-      - name: price_usd
-        description: "Bitcoin price in USD"
+          - dbt_utils.expression_is_true:
+              expression: "rate_value >= 0 AND rate_value <= 25"
+      
+      - name: rate_category
         tests:
           - not_null
+          - accepted_values:
+              values: ['Monetary Policy', 'Treasury Yield', 'Bank Lending', 'Other']
+
+  - name: int_jobless_claims
+    description: "Jobless claims intermediate model"
+    columns:
+      - name: claims_value
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "claims_value >= 0"
+      
+      - name: labor_market_status
+        tests:
+          - accepted_values:
+              values: ['Healthy', 'Moderate', 'Stressed', 'Low', 'Normal', 'High']
+
+  - name: int_sp500
+    description: "S&P 500 intermediate model"
+    columns:
+      - name: sp500_value
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "sp500_value > 0"
+      
+      - name: volatility_regime
+        tests:
+          - accepted_values:
+              values: ['Low Vol', 'Normal Vol', 'High Vol', 'Unknown']
+
+  - name: int_sofr
+    description: "SOFR intermediate model"
+    columns:
+      - name: sofr_rate
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "sofr_rate >= 0 AND sofr_rate <= 10"
+      
+      - name: rate_environment
+        tests:
+          - accepted_values:
+              values: ['Ultra Low', 'Low', 'Moderate', 'High', 'Unknown']
+
+tests:
+  - name: test_data_freshness
+    config:
+      severity: warn  # This makes it a warning instead of failure

@@ -20,4 +20,4 @@ SELECT
     'Blockstream API' AS api_source,
     CURRENT_TIMESTAMP AS dbt_created_at
 
-FROM read_json_auto('s3://bronze/mempool/*/*/*.json')
+FROM read_json_auto('s3://bronze/mempool/**/*.json')
