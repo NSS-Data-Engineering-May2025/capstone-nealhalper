@@ -33,27 +33,26 @@ WITH filtered_files AS (
         CURRENT_TIMESTAMP AS dbt_created_at
 
     FROM read_json_auto(
-        -- Reverted to original pattern to reduce memory usage
-        's3://bronze/blocks/height_910*.json',  -- More specific pattern
+        's3://bronze/blocks/height_91*.json',  -- Reverted to specific pattern
         union_by_name=true,
         ignore_errors=true,
-        maximum_depth=2,
-        sample_size=5,
-        maximum_object_size=102400  -- Reduced back to 100KB
+        maximum_depth=2,                 -- Reduced depth
+        sample_size=5,                   -- Conservative sample size
+        maximum_object_size=102400       -- Back to 100KB limit
     )
     
     WHERE raw_block_data IS NOT NULL
         AND raw_block_data.height IS NOT NULL
         AND raw_block_data.timestamp IS NOT NULL
         AND TRY_CAST(raw_block_data.height AS INTEGER) > 0
-        AND TRY_CAST(raw_block_data.tx_count AS INTEGER) > 0  -- Ensure we have transaction data
-        AND TRY_CAST(raw_block_data.size AS BIGINT) > 0       -- Ensure we have size data
+        AND TRY_CAST(raw_block_data.tx_count AS INTEGER) > 0
+        AND TRY_CAST(raw_block_data.size AS BIGINT) > 0
         
-        -- Reverted to last 30 days to reduce memory usage
+        -- Back to 30 day window
         AND TRY_CAST(raw_block_data.timestamp AS BIGINT) > (EXTRACT(EPOCH FROM CURRENT_DATE - INTERVAL 30 DAY))
     
     ORDER BY TRY_CAST(raw_block_data.height AS INTEGER) DESC
-    LIMIT 1000  -- Reduced back to original limit
+    LIMIT 1000  -- Conservative limit
 )
 
 SELECT 

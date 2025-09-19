@@ -143,7 +143,7 @@ else:
 st.sidebar.subheader("🔍 Analysis Focus")
 analysis_type = st.sidebar.selectbox(
     "Choose analysis type:",
-    ["Overview", "Price Analysis", "Network Health", "Economic Correlations"],  # Removed "Fee Analysis"
+    ["Overview", "Price Analysis", "Economic Correlations"],
     help="Select the type of analysis to display"
 )
 
@@ -155,12 +155,10 @@ def load_bitcoin_prices(start_date, end_date):
     SELECT 
         date,
         price_usd,
-        market_cap_usd,
         total_volume_usd,
         daily_return,
         weekly_return,
-        monthly_return,
-        price_30d_volatility
+        monthly_return
     FROM main_marts.fact_bitcoin_prices
     WHERE date BETWEEN '{start_date}' AND '{end_date}'
     ORDER BY date
@@ -472,7 +470,6 @@ def check_missing_federal_funds_rate(start_date, end_date):
 
 # Load data using direct table references
 btc_data = load_bitcoin_prices(start_date, end_date)
-network_data = load_bitcoin_network(start_date, end_date)
 economic_data = load_economic_data(start_date, end_date)
 
 # Check specifically for Federal Funds Rate
@@ -482,14 +479,13 @@ fedfunds_check = check_missing_federal_funds_rate(start_date, end_date)
 st.sidebar.markdown("### 📊 Data Status")
 st.sidebar.info(f"""
 **Price Data**: {'✅ Found' if not btc_data.empty else '❌ Not found'}  
-**Network Data**: {'✅ Found' if not network_data.empty else '❌ Not found'}  
 **Economic Data**: {'✅ Found' if not economic_data.empty else '❌ Not found'}  
 **Federal Funds Rate**: {'✅ Found' if not fedfunds_check.empty else '❌ Missing'}  
-**Records Found**: {len(btc_data)} price, {len(network_data)} network, {len(economic_data)} economic
+**Records Found**: {len(btc_data)} price, {len(economic_data)} economic
 """)
 
 # Check if we have any data at all
-if btc_data.empty and network_data.empty:
+if btc_data.empty:
     st.error("❌ No data available for analysis.")
     st.info("""
     **To resolve this issue:**
@@ -503,46 +499,17 @@ if btc_data.empty and network_data.empty:
 if analysis_type == "Overview":
     st.header("📈 Bitcoin Market Overview")
     
-    # Add debug info
-    debug_network_data_availability(start_date, end_date)
-    
     if btc_data.empty:
         st.warning("📊 No price data available for the selected date range")
     else:
-        # Key metrics row
-        col1, col2, col3, col4 = st.columns(4)
-        
+        # Key metrics row - now only showing current price
         latest_data = btc_data.iloc[-1]
         
-        with col1:
-            st.metric(
-                "Current Price",
-                f"${latest_data['price_usd']:,.2f}" if pd.notna(latest_data['price_usd']) else "N/A",
-                delta=f"{latest_data['daily_return']:.2%}" if pd.notna(latest_data['daily_return']) else None
-            )
-        
-        with col2:
-            st.metric(
-                "Market Cap",
-                f"${latest_data['market_cap_usd']/1e9:.1f}B" if pd.notna(latest_data['market_cap_usd']) else "N/A"
-            )
-        
-        with col3:
-            st.metric(
-                "30-Day Volatility",
-                f"{latest_data['price_30d_volatility']:.2%}" if pd.notna(latest_data['price_30d_volatility']) else "N/A"
-            )
-        
-        with col4:
-            if not network_data.empty:
-                latest_network = network_data.iloc[-1]
-                st.metric(
-                    "Network Usage",
-                    latest_network['network_usage_level'] if pd.notna(latest_network['network_usage_level']) else "N/A",
-                    delta=f"{latest_network['avg_block_fullness_pct']:.1f}% full" if pd.notna(latest_network['avg_block_fullness_pct']) else None
-                )
-            else:
-                st.metric("Network Usage", "No data")
+        st.metric(
+            "Current Price",
+            f"${latest_data['price_usd']:,.2f}" if pd.notna(latest_data['price_usd']) else "N/A",
+            delta=f"{latest_data['daily_return']:.2%}" if pd.notna(latest_data['daily_return']) else None
+        )
 
         # Price chart
         st.subheader("Bitcoin Price Trend")
@@ -555,103 +522,6 @@ if analysis_type == "Overview":
         )
         fig_price.update_layout(height=400)
         st.plotly_chart(fig_price, use_container_width=True)
-
-        # Enhanced network charts with better data handling
-        if not network_data.empty:
-            # Get the date range from price data for consistency
-            price_start_date = btc_data['date'].min()
-            price_end_date = btc_data['date'].max()
-            
-            # Filter network data to match price data date range
-            network_filtered = network_data[
-                (network_data['date'] >= price_start_date) & 
-                (network_data['date'] <= price_end_date)
-            ]
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("Network Activity")
-                if not network_filtered.empty and 'daily_transaction_count' in network_filtered.columns:
-                    # FIXED: Only remove actual nulls, keep zeros as they may be legitimate data
-                    tx_data = network_filtered.dropna(subset=['daily_transaction_count'])
-                    
-                    # Show what we're working with
-                    st.caption(f"Raw records: {len(network_filtered)}, After null removal: {len(tx_data)}")
-                    
-                    if not tx_data.empty:
-                        # Show zero count info but don't filter them out
-                        zero_count = len(tx_data[tx_data['daily_transaction_count'] == 0])
-                        if zero_count > 0:
-                            st.caption(f"ℹ️ {zero_count} days with zero transactions (included in chart)")
-                        
-                        fig_tx = px.line(
-                            tx_data, 
-                            x='date', 
-                            y='daily_transaction_count',
-                            title="Daily Transaction Count"
-                        )
-                        fig_tx.update_layout(
-                            height=300,
-                            xaxis=dict(range=[price_start_date, price_end_date])
-                        )
-                        st.plotly_chart(fig_tx, use_container_width=True)
-                        
-                        # Enhanced stats
-                        st.caption(f"Date range: {tx_data['date'].min()} to {tx_data['date'].max()}")
-                        st.caption(f"Avg: {tx_data['daily_transaction_count'].mean():,.0f}, Min: {tx_data['daily_transaction_count'].min():,.0f}, Max: {tx_data['daily_transaction_count'].max():,.0f}")
-                    else:
-                        st.error("❌ No valid transaction count data after filtering")
-                        st.info("All transaction count values are null")
-                else:
-                    st.error("❌ No network transaction data available")
-                    if network_filtered.empty:
-                        st.info("Network data is empty after date filtering")
-                    else:
-                        st.info("daily_transaction_count column missing")
-            
-            with col2:
-                st.subheader("Block Fullness")
-                if not network_filtered.empty and 'avg_block_fullness_pct' in network_filtered.columns:
-                    fullness_data = network_filtered.dropna(subset=['avg_block_fullness_pct'])
-                    
-                    # Show what we're working with
-                    st.caption(f"Raw records: {len(network_filtered)}, After null removal: {len(fullness_data)}")
-                    
-                    if not fullness_data.empty:
-                        fig_fullness = px.line(
-                            fullness_data, 
-                            x='date', 
-                            y='avg_block_fullness_pct',
-                            title="Average Block Fullness %"
-                        )
-                        fig_fullness.update_layout(
-                            height=300,
-                            xaxis=dict(range=[price_start_date, price_end_date])
-                        )
-                        st.plotly_chart(fig_fullness, use_container_width=True)
-                        
-                        # Enhanced stats
-                        st.caption(f"Date range: {fullness_data['date'].min()} to {fullness_data['date'].max()}")
-                        st.caption(f"Avg: {fullness_data['avg_block_fullness_pct'].mean():.1f}%, Min: {fullness_data['avg_block_fullness_pct'].min():.1f}%, Max: {fullness_data['avg_block_fullness_pct'].max():.1f}%")
-                    else:
-                        st.error("❌ No valid block fullness data after filtering")
-                        st.info("All block fullness values are null")
-                else:
-                    st.error("❌ No network block fullness data available")
-                    if network_filtered.empty:
-                        st.info("Network data is empty after date filtering")
-                    else:
-                        st.info("avg_block_fullness_pct column missing")
-            
-            # Enhanced synchronization info
-            st.info(f"""
-            📊 **Chart Synchronization**: All charts are aligned to the same date range  
-            **Price Data Range**: {price_start_date} to {price_end_date}  
-            **Network Records Available**: {len(network_filtered)} total, {len(network_filtered.dropna(subset=['daily_transaction_count']))} with TX data, {len(network_filtered.dropna(subset=['avg_block_fullness_pct']))} with fullness data
-            """)
-        else:
-            st.warning("⚠️ No network data available to display alongside price data")
 
 # Price Analysis
 elif analysis_type == "Price Analysis":
@@ -678,33 +548,30 @@ elif analysis_type == "Price Analysis":
                 st.info("No daily return data available")
         
         with col2:
-            # Volatility over time
-            if not btc_data['price_30d_volatility'].isna().all():
-                fig_vol = px.line(
-                    btc_data, 
-                    x='date', 
-                    y='price_30d_volatility',
-                    title="30-Day Price Volatility"
-                )
-                fig_vol.update_yaxes(tickformat='.2%')
-                st.plotly_chart(fig_vol, use_container_width=True)
-            else:
-                st.info("No volatility data available")
+            # Price trend over time (replacing volatility chart)
+            fig_trend = px.line(
+                btc_data, 
+                x='date', 
+                y='price_usd',
+                title="Bitcoin Price Trend"
+            )
+            fig_trend.update_layout(height=400)
+            st.plotly_chart(fig_trend, use_container_width=True)
         
-        # Risk metrics
+        # Risk metrics - removed volatility from here too
         st.subheader("Risk Metrics")
         if not btc_data['daily_return'].isna().all():
             returns = btc_data['daily_return'].dropna()
             
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Avg Daily Return", f"{returns.mean():.3%}")
             with col2:
-                st.metric("Daily Volatility", f"{returns.std():.3%}")
-            with col3:
                 st.metric("Max Drawdown", f"{returns.min():.3%}")
-            with col4:
-                sharpe = returns.mean() / returns.std() * np.sqrt(365) if returns.std() > 0 else 0
+            with col3:
+                # Calculate Sharpe ratio using calculated daily volatility
+                daily_vol = returns.std()
+                sharpe = returns.mean() / daily_vol * np.sqrt(365) if daily_vol > 0 else 0
                 st.metric("Annualized Sharpe", f"{sharpe:.2f}")
         else:
             st.info("No return data available for risk metric calculations")
@@ -721,177 +588,6 @@ elif analysis_type == "Price Analysis":
                 trendline="ols"
             )
             st.plotly_chart(fig_price_vol, use_container_width=True)
-
-# Network Health
-elif analysis_type == "Network Health":
-    st.header("🔗 Bitcoin Network Health")
-    
-    if network_data.empty:
-        st.error("❌ No network data available for analysis")
-    else:
-        # Network metrics overview
-        col1, col2, col3, col4 = st.columns(4)
-        
-        latest_network = network_data.iloc[-1]
-        
-        with col1:
-            st.metric(
-                "Daily Blocks",
-                f"{latest_network['daily_block_count']:.0f}" if pd.notna(latest_network['daily_block_count']) else "N/A"
-            )
-        
-        with col2:
-            st.metric(
-                "Avg Block Size",
-                f"{latest_network['avg_block_size']/1e6:.2f}MB" if pd.notna(latest_network['avg_block_size']) else "N/A"
-            )
-        
-        with col3:
-            st.metric(
-                "Daily Transactions",
-                f"{latest_network['daily_transaction_count']:,.0f}" if pd.notna(latest_network['daily_transaction_count']) else "N/A"
-            )
-        
-        with col4:
-            st.metric(
-                "Block Fullness",
-                f"{latest_network['avg_block_fullness_pct']:.1f}%" if pd.notna(latest_network['avg_block_fullness_pct']) else "N/A"
-            )
-
-        # Network charts with corrected filtering
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Transaction count over time - FIXED: Only filter nulls, keep zeros
-            if 'daily_transaction_count' in network_data.columns:
-                # Only filter out NULL values, keep zero values as they might be legitimate
-                tx_data = network_data.dropna(subset=['daily_transaction_count'])
-                
-                if not tx_data.empty:
-                    st.info(f"📊 Showing transaction data for {len(tx_data)} days")
-                    
-                    # Show data quality info
-                    zero_count = len(tx_data[tx_data['daily_transaction_count'] == 0])
-                    if zero_count > 0:
-                        st.caption(f"ℹ️ {zero_count} days with zero transactions (keeping in chart)")
-                    
-                    fig_tx = px.line(
-                        tx_data, 
-                        x='date', 
-                        y='daily_transaction_count',
-                        title="Daily Transaction Count"
-                    )
-                    fig_tx.update_layout(
-                        height=300,
-                        yaxis_title="Transaction Count",
-                        xaxis_title="Date"
-                    )
-                    fig_tx.update_traces(line=dict(width=2))
-                    st.plotly_chart(fig_tx, use_container_width=True)
-                    
-                    # Enhanced summary stats
-                    col_a, col_b, col_c = st.columns(3)
-                    with col_a:
-                        st.caption(f"Avg: {tx_data['daily_transaction_count'].mean():,.0f}")
-                    with col_b:
-                        st.caption(f"Min: {tx_data['daily_transaction_count'].min():,.0f}")
-                    with col_c:
-                        st.caption(f"Max: {tx_data['daily_transaction_count'].max():,.0f}")
-                    
-                    # Show date range coverage
-                    st.caption(f"📅 Data range: {tx_data['date'].min()} to {tx_data['date'].max()}")
-                else:
-                    st.info("No valid transaction count data available")
-            else:
-                st.info("Transaction count column not found in network data")
-        
-        with col2:
-            # Block fullness - Only filter nulls, keep all percentage values
-            if 'avg_block_fullness_pct' in network_data.columns:
-                fullness_data = network_data.dropna(subset=['avg_block_fullness_pct'])
-                
-                if not fullness_data.empty:
-                    st.info(f"📊 Showing block fullness data for {len(fullness_data)} days")
-                    
-                    fig_fullness = px.line(
-                        fullness_data, 
-                        x='date', 
-                        y='avg_block_fullness_pct',
-                        title="Average Block Fullness %"
-                    )
-                    fig_fullness.update_layout(
-                        height=300,
-                        yaxis_title="Block Fullness (%)",
-                        xaxis_title="Date"
-                    )
-                    fig_fullness.update_traces(line=dict(width=2))
-                    st.plotly_chart(fig_fullness, use_container_width=True)
-                    
-                    # Enhanced summary stats
-                    col_a, col_b, col_c = st.columns(3)
-                    with col_a:
-                        st.caption(f"Avg: {fullness_data['avg_block_fullness_pct'].mean():.1f}%")
-                    with col_b:
-                        st.caption(f"Min: {fullness_data['avg_block_fullness_pct'].min():.1f}%")
-                    with col_c:
-                        st.caption(f"Max: {fullness_data['avg_block_fullness_pct'].max():.1f}%")
-                    
-                    # Show date range coverage
-                    st.caption(f"📅 Data range: {fullness_data['date'].min()} to {fullness_data['date'].max()}")
-                else:
-                    st.info("No valid block fullness data available")
-            else:
-                st.info("Block fullness column not found in network data")
-
-        # Data availability summary
-        st.subheader("📊 Data Availability Summary")
-        if not network_data.empty:
-            availability_info = f"""
-            **Total Network Records**: {len(network_data)}  
-            **Date Range**: {network_data['date'].min()} to {network_data['date'].max()}  
-            **Transaction Count Records**: {len(network_data.dropna(subset=['daily_transaction_count']))}  
-            **Block Fullness Records**: {len(network_data.dropna(subset=['avg_block_fullness_pct']))}  
-            **Records with Both Metrics**: {len(network_data.dropna(subset=['daily_transaction_count', 'avg_block_fullness_pct']))}
-            """
-            st.info(availability_info)
-
-        # Rest of the mempool and difficulty charts (keep unchanged)
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if 'avg_mempool_size' in network_data.columns:
-                mempool_data = network_data.dropna(subset=['avg_mempool_size'])
-                if not mempool_data.empty:
-                    fig_mempool = px.line(
-                        mempool_data,
-                        x='date',
-                        y='avg_mempool_size',
-                        title="Average Mempool Size"
-                    )
-                    fig_mempool.update_layout(height=300)
-                    st.plotly_chart(fig_mempool, use_container_width=True)
-                else:
-                    st.info("No mempool size data available")
-            else:
-                st.info("Mempool size column not found")
-        
-        with col2:
-            if 'avg_difficulty' in network_data.columns:
-                difficulty_data = network_data.dropna(subset=['avg_difficulty'])
-                if not difficulty_data.empty:
-                    fig_difficulty = px.line(
-                        difficulty_data,
-                        x='date',
-                        y='avg_difficulty',
-                        title="Network Difficulty"
-                    )
-                    fig_difficulty.update_layout(height=300)
-                    fig_difficulty.update_yaxes(tickformat='.2e')  # Scientific notation for large numbers
-                    st.plotly_chart(fig_difficulty, use_container_width=True)
-                else:
-                    st.info("No difficulty data available")
-            else:
-                st.info("Difficulty column not found")
 
 # Economic Correlations
 elif analysis_type == "Economic Correlations":
@@ -1070,17 +766,16 @@ elif analysis_type == "Economic Correlations":
                 else:
                     st.info("Insufficient data for correlation analysis")
 
-# Data quality info
+# Data quality info - updated to remove network data references
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📋 Data Quality")
 st.sidebar.info(f"""
 **Date Range**: {start_date} to {end_date}  
 **Price Records**: {len(btc_data)}  
-**Network Records**: {len(network_data)}  
 **Economic Records**: {len(economic_data)}  
 **Last Updated**: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 """)
 
 # Footer
 st.markdown("---")
-st.markdown("*Dashboard powered by dbt, DuckDB, and Streamlit | Data from Blockstream, CoinGecko, and FRED APIs*")
+st.markdown("*Dashboard powered by dbt, DuckDB, and Streamlit | Data from CoinGecko and FRED APIs*")

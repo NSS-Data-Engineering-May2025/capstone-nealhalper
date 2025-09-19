@@ -137,13 +137,37 @@ SELECT
     ef.continued_claims,
     ef.unemployment_rate,
     
-    -- Bitcoin returns
-    ROUND(btc.price_usd / LAG(btc.price_usd, 1) OVER (ORDER BY btc.date) - 1, 6) AS daily_return,
-    ROUND(btc.price_usd / LAG(btc.price_usd, 7) OVER (ORDER BY btc.date) - 1, 4) AS weekly_return,
-    ROUND(btc.price_usd / LAG(btc.price_usd, 30) OVER (ORDER BY btc.date) - 1, 4) AS monthly_return,
+    -- Bitcoin returns (CORRECTED)
+    CASE 
+        WHEN LAG(btc.price_usd, 1) OVER (ORDER BY btc.date) IS NOT NULL 
+            AND LAG(btc.price_usd, 1) OVER (ORDER BY btc.date) > 0
+        THEN ROUND((btc.price_usd / LAG(btc.price_usd, 1) OVER (ORDER BY btc.date)) - 1, 6)
+        ELSE NULL
+    END AS daily_return,
     
-    -- Volatility
-    STDDEV(btc.price_change_pct) OVER (
+    CASE 
+        WHEN LAG(btc.price_usd, 7) OVER (ORDER BY btc.date) IS NOT NULL 
+            AND LAG(btc.price_usd, 7) OVER (ORDER BY btc.date) > 0
+        THEN ROUND((btc.price_usd / LAG(btc.price_usd, 7) OVER (ORDER BY btc.date)) - 1, 4)
+        ELSE NULL
+    END AS weekly_return,
+    
+    CASE 
+        WHEN LAG(btc.price_usd, 30) OVER (ORDER BY btc.date) IS NOT NULL 
+            AND LAG(btc.price_usd, 30) OVER (ORDER BY btc.date) > 0
+        THEN ROUND((btc.price_usd / LAG(btc.price_usd, 30) OVER (ORDER BY btc.date)) - 1, 4)
+        ELSE NULL
+    END AS monthly_return,
+    
+    -- Volatility (CORRECTED - using calculated daily returns)
+    STDDEV(
+        CASE 
+            WHEN LAG(btc.price_usd, 1) OVER (ORDER BY btc.date) IS NOT NULL 
+                AND LAG(btc.price_usd, 1) OVER (ORDER BY btc.date) > 0
+            THEN (btc.price_usd / LAG(btc.price_usd, 1) OVER (ORDER BY btc.date)) - 1
+            ELSE NULL
+        END
+    ) OVER (
         ORDER BY btc.date 
         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
     ) AS price_30d_volatility,
