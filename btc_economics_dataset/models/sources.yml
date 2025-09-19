@@ -1,0 +1,46 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Raw Bitcoin data from MinIO via DuckDB S3 integration
+    meta:
+      external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/"
+    
+    tables:
+      - name: blocks
+        description: Raw Bitcoin block data
+        meta:
+          external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/blocks/*.json"
+
+      - name: mempool_snapshots
+        description: Real-time mempool snapshots
+        meta:
+          external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/mempool/*/*.json"
+
+      - name: current_fee_estimates
+        description: Current fee estimate snapshots
+        meta:
+          external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/fees/current/*/*.json"
+
+      - name: historical_fee_data
+        description: Historical fee data points
+        meta:
+          external_location: "s3://{{ env_var('MINIO_BUCKET_NAME', 'bronze') }}/fees/historical/*.json"
+
+  - name: coingecko
+    description: CoinGecko price and market data from separate bucket
+    meta:
+      external_location: "s3://coingecko-data/"
+    
+    tables:
+      - name: coingecko_raw
+        description: Raw CoinGecko price and market data
+        meta:
+          external_location: "s3://coingecko-data/*.json"
+        columns:
+          - name: batch_info  # Changed from file_name to batch_info
+            description: Batch information with timestamp
+          - name: records
+            description: Raw JSON response from CoinGecko API with nested market_data structure
+          - name: file_collection_timestamp
+            description: When the data file was collected

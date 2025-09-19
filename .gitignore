@@ -1,1 +1,6 @@
 .env
+*.duckdb
+profiles.yml
+target/
+dbt_packages/
+logs/
