@@ -324,10 +324,6 @@ vars:
 3. Extend dimension table with metadata
 4. Add to dashboard correlation analysis
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🙏 Acknowledgments
 
 - **Data Providers**: CoinGecko, Federal Reserve Economic Data (FRED), Blockstream
